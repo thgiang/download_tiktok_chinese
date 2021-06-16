@@ -3,6 +3,5 @@
 ################################################################################
 
 /.vs
-/WindowsFormsApp3/obj/Debug
-/bin/*
-/obj/*
+/WindowsFormsApp3/obj/*
+/WindowsFormsApp3/bin/*
