@@ -29,16 +29,23 @@ namespace Tiktok
 
         private void button1_Click(object sender, EventArgs e)
         {
+            // 3 nghia la lay 3 video moi nhat
             Thread reupThread = new Thread(new ParameterizedThreadStart(ReupTiktokTQ));
-            reupThread.Start(txtLink.Text.ToString());
+            reupThread.Start(numericUpDown1.Value.ToString()+"|"+txtLink.Text.ToString());
         }
 
-        private void ReupTiktokTQ (object channelLink)
+        private void ReupTiktokTQ (object param)
         {
+            string[] settings =  param.ToString().Split('|');
+            if (settings.Length != 2)
+            {
+                Console.WriteLine(param.ToString() + " bị sai định dạng số lượng|link");
+            }
             try
             {
-                ReupTiktokTQ reup = new ReupTiktokTQ(channelLink.ToString());
+                ReupTiktokTQ reup = new ReupTiktokTQ(settings[1].ToString(), int.Parse(settings[0]));
                 reup.Run();
+                MessageBox.Show("Done, check you folder: "+ Directory.GetCurrentDirectory() + @"\Videos");
             }
             catch (Exception ex)
             {

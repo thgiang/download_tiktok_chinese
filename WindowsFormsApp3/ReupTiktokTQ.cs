@@ -1,8 +1,10 @@
-﻿using Newtonsoft.Json;
+﻿using log4net;
+using Newtonsoft.Json;
 using RestSharp;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -16,37 +18,23 @@ namespace Tiktok
 {
     class ReupTiktokTQ
     {
-        int limitFile = 50, totalFileCount = 0, doneFileCount = 0;
+        int limitFile = 3, totalFileCount = 0, doneFileCount = 0;
         string channelLink = "";
-        Form loggerForm;
-        RichTextBox richTextLog;
 
-        public ReupTiktokTQ (string channelLink, int limitFile = 50)
+        public ReupTiktokTQ(string channelLink, int limitFile = 3)
         {
             this.limitFile = limitFile;
             this.channelLink = channelLink;
-
-            loggerForm = new Form();
-            loggerForm.Text = "Hello world";
-            loggerForm.Controls.Add(new ProgressBar() { Name = "progressBar1" });
-            loggerForm.Controls.Add(new Label() { Name = "label" });
-            richTextLog = new RichTextBox() { Name = "richTextLog" };
-            loggerForm.Controls.Add(richTextLog);
-            loggerForm.Show();
-            loggerForm.Update();
         }
         public void Run()
         {
-            WriteLog("Bat dau chay");
-
-           
             this.DownloadLatestVideos();
             this.ReupVideos();
         }
 
-        private void WriteLog(string content)
+        private void log(string content)
         {
-
+            Console.WriteLine(content);
         }
 
         private void ReupVideos()
@@ -54,9 +42,15 @@ namespace Tiktok
 
         }
 
+        public class MyVideo
+        {
+            public string Vid;
+            public string Url;
+            public string AuthorId;
+        }
+
         private int DownloadLatestVideos()
         {
-
             this.doneFileCount = 0;
 
             string realUrl = RedirectPath(channelLink);
@@ -70,13 +64,13 @@ namespace Tiktok
                 string secUid = HttpUtility.ParseQueryString(myUri.Query).Get("sec_uid");
                 if (String.IsNullOrEmpty(realUrl))
                 {
-                    MessageBox.Show("Cannot find sec_uid from real URL");
+                    log("Cannot find sec_uid from real URL");
                     return 403;
                 }
                 else
                 {
                     VideoList result = new VideoList();
-                    List<string> allVideos = new List<string>();
+                    List<MyVideo> allVideos = new List<MyVideo>();
                     long maxCursor = 0;
                     do
                     {
@@ -85,7 +79,20 @@ namespace Tiktok
                         {
                             try
                             {
-                                allVideos.Add(video.Video.PlayAddr.UrlList[0].ToString());
+                                MyVideo vd = new MyVideo();
+                                vd.Url = video.Video.PlayAddr.UrlList[0].ToString();
+                                vd.Vid = video.Video.Vid.ToString();
+                                vd.AuthorId = video.Author.Uid.ToString();
+
+                                // Nếu trong thư mục chưa tồn tại video này thì mới thêm vào list
+                                if (!File.Exists(Directory.GetCurrentDirectory() + @"\Videos\" + vd.AuthorId + @"\" + vd.Vid + ".mp4"))
+                                {
+                                    allVideos.Add(vd);
+                                    if (allVideos.Count >= limitFile)
+                                    {
+                                        break;
+                                    }
+                                }
                             }
                             catch
                             {
@@ -96,8 +103,13 @@ namespace Tiktok
                         maxCursor = result.MaxCursor;
                     } while (result.HasMore == true && allVideos.Count < limitFile);
 
+                    if (allVideos.Count == 0)
+                    {
+                        return 0;
+                    }
+
                     // Tao folder moi
-                    string folderPath = Directory.GetCurrentDirectory() + @"\Videos\" + secUid;
+                    string folderPath = Directory.GetCurrentDirectory() + @"\Videos\" + allVideos[0].AuthorId;
                     if (!Directory.Exists(folderPath))
                     {
                         Directory.CreateDirectory(folderPath);
@@ -105,9 +117,9 @@ namespace Tiktok
 
                     // Echo link
                     this.totalFileCount = allVideos.Count;
-                    foreach (string videoUrl in allVideos)
+                    foreach (MyVideo video in allVideos)
                     {
-                        DownloadFile(videoUrl, folderPath);
+                        DownloadFile(video, folderPath);
                     }
                     return 1;
                 }
@@ -125,25 +137,21 @@ namespace Tiktok
 
         public void wc_DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs e)
         {
-            loggerForm.Invoke(new Action(() => {
-               // loggerForm.progressBar1.Value = e.ProgressPercentage;
-            }));
+            log(e.ProgressPercentage.ToString() + "%");
         }
 
         public void wc_DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)
         {
             this.doneFileCount++;
-            loggerForm.Invoke(new Action(() => {
-               // loggerForm.label.Text = "Downloading " + doneFileCount.ToString() + "/" + totalFileCount.ToString() + " video(s)";
-            }));
+            log("Downloading " + doneFileCount.ToString() + "/" + totalFileCount.ToString() + " video(s)");
         }
 
-        private bool DownloadFile(string url, string folderPath)
+        private bool DownloadFile(MyVideo video, string folderPath)
         {
-            string filename = RandomString(10) + ".mp4";
-            while (File.Exists(folderPath + @"\" + filename))
+            string filename = video.Vid + ".mp4";
+            if (File.Exists(folderPath + @"\" + filename))
             {
-                filename = RandomString(10) + ".mp4";
+                return true;
             }
 
             using (WebClient wc = new WebClient())
@@ -151,7 +159,7 @@ namespace Tiktok
                 wc.DownloadProgressChanged += wc_DownloadProgressChanged;
                 wc.DownloadFileCompleted += wc_DownloadFileCompleted;
                 wc.DownloadFileAsync(
-                    new System.Uri(url),
+                    new System.Uri(video.Url),
                     folderPath + @"\" + filename
                 );
             }

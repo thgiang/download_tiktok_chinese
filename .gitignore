@@ -5,3 +5,4 @@
 /.vs
 /WindowsFormsApp3/obj/*
 /WindowsFormsApp3/bin/*
+/packages/log4net.2.0.12
